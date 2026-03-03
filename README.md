@@ -7,6 +7,8 @@ Run 함수 완성
 CalculateFrameState 함수 완성
 AnsiToWString 함수 완성
 ThrowIfFailed 매크로 완성
+# 내일 할 일 정리
+Rtv Heap 만들기, Dsv Heap 만들기, SwapChain 만들기, OnResize 함수 마무리
 # 버그 노트
 메크로 멀티라인 작성 시 각 줄 뒤에는 \(역슬레쉬)를 넣어야 한다
 # 핵심 기법
