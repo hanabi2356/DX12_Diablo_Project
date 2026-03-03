@@ -40,7 +40,12 @@ protected:
 protected:
 	Application(HINSTANCE hInstance);
 	bool InitMainWindow();
-	
+	virtual void OnResize();
+	virtual void Update(const GameTimer& dt) = 0;
+	virtual void Draw(const GameTimer& dt) = 0;
+
+protected:
+	void CalculateFrameState();
 public:
 	static Application* GetApp();
 	virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

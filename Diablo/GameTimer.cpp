@@ -5,7 +5,7 @@ GameTimer::GameTimer()
 {
 	//GameTimer을 호출 할 때마다 시작 시간을 기록하기 위해 사용
 	__int64 countPerSec;
-	QueryPerformanceCounter((LARGE_INTEGER*)&countPerSec);  //태초로 부터 몇 번 카운트 되었는지를 반환한다
+	QueryPerformanceFrequency((LARGE_INTEGER*)&countPerSec);  //태초로 부터 몇 번 카운트 되었는지를 반환한다
 	mSecondPerCount = 1.0 / (double)countPerSec;  //초 당 몇 번 카운트 되었는지 알기 위해 1초/전체 틱 수를 해준다
 }
 
