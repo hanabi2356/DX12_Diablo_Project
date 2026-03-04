@@ -7,8 +7,14 @@ Run 함수 완성
 CalculateFrameState 함수 완성
 AnsiToWString 함수 완성
 ThrowIfFailed 매크로 완성
+<26/03/04>
+RTV,DSV Desctiptor Heap 생성 함수 완성
+SwapCahin 생성 함수 완성
+
 # 내일 할 일 정리
-OnResize 함수 마무리
+OnResize 함수 마무리, InitDirect3D 마무리 
+CreateCommandQueue, LogAdapters 완성
+
 # 버그 노트
 메크로 멀티라인 작성 시 각 줄 뒤에는 \(역슬레쉬)를 넣어야 한다
 # 핵심 기법
@@ -44,6 +50,13 @@ OnResize 함수 마무리
 마이크로소프트 사가 제공하는 d3dx12.h 파일을 추가 
   - 초기화 코드를 간결하게 줄여주고 안전하게 리소스 관리를 해준다
 
+ID3D12Debug를 사용한 DebugLayer 활성화 
+  - ID3D12Debug를 사용하여 개발 단계에서 GPU 명령의 유효성을 검사한다
+  - DebugLayer를 사용해 릴리즈 빌드 시 성능을 최적화 한다
+
+D3D_FEATURE_LEVEL형 배열을 이용한 하드웨어 프로파일링 최적화
+  - 사용자에 맞는 기능 수준을 제공한다
+  - 멤버 변수에 FeatureLevel을 저장해 사용자가 사용할 수 있는 Directx 버전에 맞춰 기능을 On/Off 한다
 
 # 클래스 및 함수 기능 설명
 Class GameTimer
@@ -102,7 +115,7 @@ CalculateFrameState
   - 성능 지표인 프레임을 실기간으로 확인 함으로써 최적화 상태를 실시간으로 확인하며 작업할 수 있도록 한다
 
 CreateRtvAndDsvDescriptorHeaps 
-  - RTV Heap 및 DSV Heap을 생성한다
+  - RTV및 DSV의 Descriptor Heap을 생성한다
 
 CreateSwapChain 
   - 스왑체인을 생성한다
