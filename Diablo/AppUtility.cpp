@@ -9,5 +9,5 @@ std::wstring DxException::ToString() const
 {
 	_com_error err(ErrorCode);
 	std::wstring msg = err.ErrorMessage();
-	return FunctionName + L"failed in" + FileName + L"; line" + std::to_wstring(LineNumber) + L"; error" + msg;
+	return FunctionName + L" failed in" + FileName + L"; line" + std::to_wstring(LineNumber) + L"; error" + msg;
 }

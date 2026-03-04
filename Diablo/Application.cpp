@@ -27,7 +27,7 @@ void Application::CalculateFrameState()
 	if ((mTimer.TotalTime() - timeElapsed) >= 1.0f)
 	{
 		float fps = (float)frameCnt;
-		float mspf = 1000.0f / fps;
+		float mspf = 1000.0f / fps;  //Milli-Second Per Frame
 		wstring fpsStr = to_wstring(fps);
 		wstring mspfStr = to_wstring(mspf);
 
@@ -156,6 +156,22 @@ int Application::Run()
 	}
 	return (int)msg.wParam;
 }
+void Application::CreateRtvAndDsvDescriptorHeaps()  //서술자 힙 생성
+{
+	D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc;
+	rtvHeapDesc.NumDescriptors = SwapChainBufferCount;
+	rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+	rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	rtvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(m3dDevice->CreateDescriptorHeap(&rtvHeapDesc, IID_PPV_ARGS(mRtvHeap.GetAddressOf())));
+
+	D3D12_DESCRIPTOR_HEAP_DESC dsvHeapDesc;
+	dsvHeapDesc.NumDescriptors = 1;
+	dsvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+	dsvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+	dsvHeapDesc.NodeMask = 0;
+	ThrowIfFailed(m3dDevice->CreateDescriptorHeap(&dsvHeapDesc, IID_PPV_ARGS(mDsvHeap.GetAddressOf())));
+}
 bool Application::InitMainWindow()
 {
 	WNDCLASS wc;  //명세서
@@ -192,4 +208,136 @@ bool Application::InitMainWindow()
 	ShowWindow(mMainWnd, SW_SHOW);  //윈도우를 화면에 나타나게 해줌
 	UpdateWindow(mMainWnd);  //윈도우가 처음 그려질 때 WM_PAINT 메시지 발생
 	return false;
+}
+
+bool Application::InitDirect3D()
+{
+#if defined(DEBUG) | defined(_DEBUG)
+{
+	ComPtr<ID3D12Debug>debugController;
+	ThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
+	debugController->EnableDebugLayer();
+}
+#endif
+	ThrowIfFailed(CreateDXGIFactory1(IID_PPV_ARGS(&mdxgiFactory)));
+	D3D_FEATURE_LEVEL featurLevels[] =
+	{
+		D3D_FEATURE_LEVEL_12_2,  //최신
+		D3D_FEATURE_LEVEL_12_1,
+		D3D_FEATURE_LEVEL_12_0,
+		D3D_FEATURE_LEVEL_11_1,
+		D3D_FEATURE_LEVEL_11_0  //최소 마지노선
+	};
+	HRESULT hr = E_FAIL;
+	for (auto level : featurLevels)
+	{
+		hr = D3D12CreateDevice(nullptr, level, IID_PPV_ARGS(&m3dDevice));
+		if (SUCCEEDED(hr))
+		{
+			mFeatureLevel = level;
+			break;
+		}
+	}
+
+	if (FAILED(hr))
+	{
+		Microsoft::WRL::ComPtr<IDXGIAdapter>pWarpAdapter;
+		ThrowIfFailed(mdxgiFactory->EnumWarpAdapter(IID_PPV_ARGS(&pWarpAdapter)));
+
+		ThrowIfFailed(D3D12CreateDevice(pWarpAdapter.Get(), mMinimumFeatureLevel, IID_PPV_ARGS(&m3dDevice)));
+		mFeatureLevel = mMinimumFeatureLevel;
+	}
+	
+	ThrowIfFailed(m3dDevice->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&mFence)));
+	
+	mRtvDescriptorSize = m3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+	mDsvDescriptorSize = m3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
+	mCbvSrvUavDescriptorSize = m3dDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS msQualityLevels;
+	msQualityLevels.Format = mBackBufferFormat;
+	msQualityLevels.SampleCount = 4;
+	msQualityLevels.Flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE;
+	msQualityLevels.NumQualityLevels = 0;
+	ThrowIfFailed(m3dDevice->CheckFeatureSupport(D3D12_FEATURE_MULTISAMPLE_QUALITY_LEVELS, &msQualityLevels, sizeof(msQualityLevels)));
+
+	m4xMsaaQuality = msQualityLevels.NumQualityLevels;
+	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level");
+
+	//여기 부터 작업 진행
+
+
+	return true;
+}
+
+void Application::CreateSwapChain()
+{
+	mSwapChain.Reset();
+	
+	Microsoft::WRL::ComPtr<IDXGIAdapter>adapter;
+	Microsoft::WRL::ComPtr<IDXGIOutput>output;
+
+	mdxgiFactory->EnumAdapters(0, &adapter);
+	adapter->EnumOutputs(0, &output);
+
+	Microsoft::WRL::ComPtr<IDXGIOutput1>output1;
+	ThrowIfFailed(output.As(&output1));
+
+	
+	DXGI_MODE_DESC1 targetDesc;
+	targetDesc.RefreshRate.Numerator = 60;
+	targetDesc.RefreshRate.Denominator = 1;
+	targetDesc.ScanlineOrdering = DXGI_MODE_SCANLINE_ORDER_UNSPECIFIED;
+	targetDesc.Scaling = DXGI_MODE_SCALING_UNSPECIFIED;
+
+	DXGI_SWAP_CHAIN_DESC1 sd;
+	sd.Width = mClientWidth;
+	sd.Height = mClientHeight;
+	sd.Format = mBackBufferFormat;
+	sd.Stereo = false;
+	sd.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	sd.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+	sd.BufferCount = SwapChainBufferCount;
+	sd.Scaling = DXGI_SCALING_STRETCH;
+	sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+	sd.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+	sd.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
+
+	DXGI_MODE_DESC1 closestMatch;
+	ThrowIfFailed(output1->FindClosestMatchingMode1(&targetDesc, &closestMatch, m3dDevice.Get()));
+
+	DXGI_SWAP_CHAIN_FULLSCREEN_DESC fsd;
+	fsd.RefreshRate = closestMatch.RefreshRate;
+	fsd.ScanlineOrdering = closestMatch.ScanlineOrdering;
+	fsd.Scaling = closestMatch.Scaling;
+	fsd.Windowed = true;
+	
+	Microsoft::WRL::ComPtr<IDXGISwapChain1>swapChain1;
+	ThrowIfFailed(mdxgiFactory->CreateSwapChainForHwnd(mCommandQueue.Get(), mMainWnd, &sd, &fsd, nullptr, &swapChain1));
+
+	ThrowIfFailed(swapChain1.As(&mSwapChain));  //보관은 SwapChain에한다 
+}
+
+void Application::OnResize()
+{
+	assert(m3dDevice);
+	assert(mSwapChain);
+	assert(mDirectCmdListAlloc);
+
+	FlushCommandQueue();
+
+	ThrowIfFailed(mCommandList->Reset(mDirectCmdListAlloc.Get(), nullptr));
+
+	for (int i = 0; i < SwapChainBufferCount; i++)
+		mSwapChainBuffer[i].Reset();
+	mDepthStencilBuffer.Reset();
+
+	ThrowIfFailed(mSwapChain->ResizeBuffers(SwapChainBufferCount, mClientWidth, mClientHeight, mBackBufferFormat, DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH));
+	
+	mCurrBackBuffer = 0;
+	
+	
+	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+
 }

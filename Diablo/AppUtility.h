@@ -5,10 +5,13 @@
 #include<wrl.h>
 #include<DirectXMath.h>
 #include<d3d12.h>
+#include<dxgi1_2.h>
+#include<dxgi1_4.h>
 #include<string>
 #include<dxgi.h>
 #include<stringapiset.h>
 #include<comdef.h>
+#include"d3dx12.h"
 
 inline std::wstring AnsiToWString(const std::string& str)
 {
