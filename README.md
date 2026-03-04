@@ -8,7 +8,7 @@ CalculateFrameState 함수 완성
 AnsiToWString 함수 완성
 ThrowIfFailed 매크로 완성
 # 내일 할 일 정리
-Rtv Heap 만들기, Dsv Heap 만들기, SwapChain 만들기, OnResize 함수 마무리
+OnResize 함수 마무리
 # 버그 노트
 메크로 멀티라인 작성 시 각 줄 뒤에는 \(역슬레쉬)를 넣어야 한다
 # 핵심 기법
@@ -30,7 +30,20 @@ Rtv Heap 만들기, Dsv Heap 만들기, SwapChain 만들기, OnResize 함수 마
   - PeekMessage를 사용하여 메시지 큐에 실행할 메시지가 없는 데드 타임에도 Update와 Draw 함수를 호출하여 애니메이션 및 실시간 렌더링이 끊기지 않게한다
 
 비활성화 시 자원관리
-  - mAppPaused가 true일 경우에는 윈도우가 비활성화 상태임을 감지하고 Sleep을 호출하여 스레드를 대기상태로 전환하여 불필요한 루프 반복을 줄여 CPU 점유율과 전력소모를 낮춰 리소스 관리를 최적화함 
+  - mAppPaused가 true일 경우에는 윈도우가 비활성화 상태임을 감지하고 Sleep을 호출하여 스레드를 대기상태로 전환하여 불필요한 루프 반복을 줄여 CPU 점유율과 전력소모를 낮춰 리소스 관리를 최적화한다
+
+가상함수 기반 리소스 관리 
+  - CreateRtvAndDsvDescriptorHeaps를 가상함수로 생성해 향후에 RTV를 현재 보다 더 많이 사용해야 할 경우 상속을 받아 무결성을 지키면서 사용할 수 있도록 한다
+
+사용자 환경에 최적화된 디스플레이 모드를 자동으로 산출 
+  - 스왑체인 생성시 FindClosestMatchingMode1을 사용하여 사용자 환경에 최적화된 디스플레이 모드를 가져온다
+
+인터페이스 추상화를 통한 하위 호환성 유지 
+  - SwapChain 생성 시 IDXGISwapChain1를 통해 SwapChain을 생성하고 생성 후 As를 통해 IDXGISwapChain에 보관한다 
+
+마이크로소프트 사가 제공하는 d3dx12.h 파일을 추가 
+  - 초기화 코드를 간결하게 줄여주고 안전하게 리소스 관리를 해준다
+
 
 # 클래스 및 함수 기능 설명
 Class GameTimer
@@ -88,6 +101,12 @@ Run
 CalculateFrameState
   - 성능 지표인 프레임을 실기간으로 확인 함으로써 최적화 상태를 실시간으로 확인하며 작업할 수 있도록 한다
 
+CreateRtvAndDsvDescriptorHeaps 
+  - RTV Heap 및 DSV Heap을 생성한다
+
+CreateSwapChain 
+  - 스왑체인을 생성한다
+    
 Class AppUtility 
   - 반복적으로 호출될 수 있는 문자열 변환, 수학 연산, 리소스 관리 등을 한곳에 모아 관리한다
     
