@@ -52,6 +52,9 @@ protected:
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>mRtvHeap;
 	Microsoft::WRL::ComPtr<ID3D12DescriptorHeap>mDsvHeap;
 	
+	D3D12_VIEWPORT mScreenViewport;
+	D3D12_RECT mScissorRect;
+
 	UINT mRtvDescriptorSize = 0;
 	UINT mDsvDescriptorSize = 0;
 	UINT mCbvSrvUavDescriptorSize = 0;
@@ -75,12 +78,17 @@ protected:
 protected:
 	bool InitMainWindow();
 	bool InitDirect3D();
-	void CreateCommandQueue();
+	void CreateCommandObject();
 	void CreateSwapChain();
 
 	void FlushCommandQueue();
 
+	D3D12_CPU_DESCRIPTOR_HANDLE DepthStencilView()const;
 	void CalculateFrameState();
+
+	void LogAdapters();
+	void LogAdapterOutputs(IDXGIAdapter1*adapter);
+	void LogOutputDisplayModes(IDXGIOutput1* output, DXGI_FORMAT format);
 public:
 	static Application* GetApp();
 	virtual LRESULT MsgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);

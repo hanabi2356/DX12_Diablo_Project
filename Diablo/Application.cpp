@@ -17,6 +17,13 @@ Application::Application(HINSTANCE hInstance)
 	assert(mApp == nullptr);
 	mApp = this;
 }
+Application::~Application()
+{
+}
+D3D12_CPU_DESCRIPTOR_HANDLE Application::DepthStencilView() const
+{
+	return mDsvHeap->GetCPUDescriptorHandleForHeapStart();
+}
 void Application::CalculateFrameState()
 {
 	static int frameCnt = 0;
@@ -39,6 +46,7 @@ void Application::CalculateFrameState()
 		timeElapsed += 1.0f;
 	}
 }
+
 Application* Application::GetApp()
 {
 	return mApp;
@@ -264,10 +272,29 @@ bool Application::InitDirect3D()
 	m4xMsaaQuality = msQualityLevels.NumQualityLevels;
 	assert(m4xMsaaQuality > 0 && "Unexpected MSAA quality level");
 
-	//여기 부터 작업 진행
-
+#ifdef _DEBUG
+	LogAdapters();
+#endif
+	CreateCommandObject();
+	CreateSwapChain();
+	CreateRtvAndDsvDescriptorHeaps();
 
 	return true;
+}
+
+void Application::CreateCommandObject()
+{
+	D3D12_COMMAND_QUEUE_DESC queueDesc = {};  //CommandQueue를 생성하기 위한 구조체
+	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+	queueDesc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+	ThrowIfFailed(m3dDevice->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(&mCommandQueue)));
+
+	ThrowIfFailed(m3dDevice->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(mDirectCmdListAlloc.GetAddressOf())));
+
+	ThrowIfFailed(m3dDevice->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, mDirectCmdListAlloc.Get(), nullptr, IID_PPV_ARGS(mCommandList.GetAddressOf())));
+
+	mCommandList->Close();
+	
 }
 
 void Application::CreateSwapChain()
@@ -319,6 +346,23 @@ void Application::CreateSwapChain()
 	ThrowIfFailed(swapChain1.As(&mSwapChain));  //보관은 SwapChain에한다 
 }
 
+void Application::FlushCommandQueue()
+{
+	mCurrentFence++;
+
+	ThrowIfFailed(mCommandQueue->Signal(mFence.Get(), mCurrentFence));
+
+	if (mFence->GetCompletedValue() < mCurrentFence)
+	{
+		HANDLE eventHandle = CreateEventEx(nullptr, false, false, EVENT_ALL_ACCESS);
+
+		ThrowIfFailed(mFence->SetEventOnCompletion(mCurrentFence, eventHandle));
+
+		WaitForSingleObject(eventHandle, INFINITE);
+		CloseHandle(eventHandle);
+	}
+}
+
 void Application::OnResize()
 {
 	assert(m3dDevice);
@@ -339,5 +383,135 @@ void Application::OnResize()
 	
 	
 	CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHeapHandle(mRtvHeap->GetCPUDescriptorHandleForHeapStart());
+	for (UINT i = 0; i < SwapChainBufferCount; i++)
+	{
+		ThrowIfFailed(mSwapChain->GetBuffer(i, IID_PPV_ARGS(&mSwapChainBuffer[i])));
+		m3dDevice->CreateRenderTargetView(mSwapChainBuffer[i].Get(), nullptr, rtvHeapHandle);
+		rtvHeapHandle.Offset(1, mRtvDescriptorSize);
+	}
 
+	D3D12_RESOURCE_DESC depthStencilDesc;
+	depthStencilDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	depthStencilDesc.Alignment = 0;
+	depthStencilDesc.Width = mClientWidth;
+	depthStencilDesc.Height = mClientHeight;
+	depthStencilDesc.DepthOrArraySize = 1;
+	depthStencilDesc.MipLevels = 1;
+	depthStencilDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+	depthStencilDesc.SampleDesc.Count = m4xMsaaState ? 4 : 1;
+	depthStencilDesc.SampleDesc.Quality = m4xMsaaState ? (m4xMsaaQuality - 1) : 0;
+	depthStencilDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	depthStencilDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	D3D12_CLEAR_VALUE optClear;
+	optClear.Format = mDepthStencilFormat;
+	optClear.DepthStencil.Depth = 1.0f;
+	optClear.DepthStencil.Stencil = 0;
+	ThrowIfFailed(m3dDevice->CreateCommittedResource(
+		&CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT), 
+		D3D12_HEAP_FLAG_NONE, 
+		&depthStencilDesc, 
+		D3D12_RESOURCE_STATE_COMMON, 
+		&optClear, 
+		IID_PPV_ARGS(mDepthStencilBuffer.GetAddressOf())));
+
+	D3D12_DEPTH_STENCIL_VIEW_DESC dsvDesc;
+	dsvDesc.Flags = D3D12_DSV_FLAG_NONE;
+	dsvDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Format = mDepthStencilFormat;
+	dsvDesc.Texture2D.MipSlice = 0;
+	m3dDevice->CreateDepthStencilView(mDepthStencilBuffer.Get(), &dsvDesc, DepthStencilView());
+
+	mCommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mDepthStencilBuffer.Get(),
+		D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+
+	ThrowIfFailed(mCommandList->Close());
+	ID3D12CommandList* cmdsLists[] = { mCommandList.Get() };
+	mCommandQueue->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+
+	FlushCommandQueue();
+	
+	mScreenViewport.TopLeftX = 0;
+	mScreenViewport.TopLeftY = 0;
+	mScreenViewport.Width = static_cast<float>(mClientWidth);
+	mScreenViewport.Height = static_cast<float>(mClientHeight);
+	mScreenViewport.MinDepth = 0.0f;
+	mScreenViewport.MaxDepth = 1.0f;
+
+	mScissorRect = { 0,0,mClientWidth,mClientHeight };
+
+}
+void Application::LogAdapters()
+{
+	UINT i = 0;
+	IDXGIAdapter1* adapter = nullptr;
+
+	vector<IDXGIAdapter1*>adapterList;
+	while (mdxgiFactory->EnumAdapters1(i, &adapter) != DXGI_ERROR_NOT_FOUND)
+	{
+		DXGI_ADAPTER_DESC desc;
+		adapter->GetDesc(&desc);
+
+		wstring text = L"***Adapter : ";
+		text += desc.Description;
+		text += L"\n";
+
+		OutputDebugString(text.c_str());
+
+		adapterList.push_back(adapter);
+		++i;
+	}
+
+	for (size_t i = 0; i < adapterList.size(); i++)
+	{
+		LogAdapterOutputs(adapterList[i]);
+		ReleaseCom(adapterList[i]);
+	}
+}
+void Application::LogAdapterOutputs(IDXGIAdapter1* adapter)
+{
+	UINT i = 0;
+	IDXGIOutput* output = nullptr;
+	while (adapter->EnumOutputs(i, &output) != DXGI_ERROR_NOT_FOUND)
+	{
+		DXGI_OUTPUT_DESC desc;
+		output->GetDesc(&desc);
+
+		wstring text = L"***Output : ";
+		text += desc.DeviceName;  //그래픽 카드와 연결된 모니터의 시스템 이름을 출력
+		text += L"\n";
+		OutputDebugString(text.c_str());
+		
+		LogOutputDisplayModes((IDXGIOutput1*)output, mBackBufferFormat);
+
+		ReleaseCom(output);
+
+		++i;
+	}
+
+}
+void Application::LogOutputDisplayModes(IDXGIOutput1* output, DXGI_FORMAT format)
+{
+	UINT count = 0;
+	UINT flags = 0;
+
+	output->GetDisplayModeList1(format, flags, &count, nullptr);
+
+	vector<DXGI_MODE_DESC1>modeList(count);
+
+	output->GetDisplayModeList1(format, flags, &count, &modeList[0]);
+
+	for (auto& x : modeList)
+	{
+		UINT n = x.RefreshRate.Numerator;
+		UINT d = x.RefreshRate.Denominator;
+		float refreshRate = static_cast<float>(n )/ d;
+		wstring text = L"Width = " + to_wstring(x.Width) + L" " +
+			L"Height = " + to_wstring(x.Height) + L" " +
+			L"Refresh = " + to_wstring(n) + L"/" + to_wstring(d) +
+			L"Totla Refresh"+to_wstring(refreshRate)+
+			L"\n";
+
+		OutputDebugString(text.c_str());
+	}
 }
