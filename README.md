@@ -10,10 +10,16 @@ ThrowIfFailed 매크로 완성
 <26/03/04>
 RTV,DSV Desctiptor Heap 생성 함수 완성
 SwapCahin 생성 함수 완성
-
+<26/03/05>
+LogAdapters 함수 완성
+LogAdapterOutputs 함수 완성
+LogOutputDisplayModes 함수 완성 
+InitDirect3D 함수 완성
+FlushCommandQueue 함수 완성
+CreateCommandObject 함수 완성
+OnResize 함수 완성
 # 내일 할 일 정리
-OnResize 함수 마무리, InitDirect3D 마무리 
-CreateCommandQueue, LogAdapters 완성
+
 
 # 버그 노트
 메크로 멀티라인 작성 시 각 줄 뒤에는 \(역슬레쉬)를 넣어야 한다
@@ -119,7 +125,30 @@ CreateRtvAndDsvDescriptorHeaps
 
 CreateSwapChain 
   - 스왑체인을 생성한다
+
+InitDirect3D 
+  - 현재 사용자가 사용할 수 있는 최대 기능 수준을 찾아낸다
+  - Device 및 울타리 생성과 서술자 크기를 얻는다. CreateCommandObject, CreateSwapChain, CreateRtvAndDsvDescriptorHeaps이 실행되는 함수
     
+CreateCommandObject 
+  - 명령 대기열(CommandQueue), 명령 할당자(CommandAllocator), 명령 목록(CommandList)을 생성한다
+    
+LogAdapters 
+  - GPU의 정보를 출력한다
+
+LogAdapterOutputs 
+  - 그래픽 카드와 연결된 모니터 시스템의 이름을 출력한다
+    
+LogOutputDisplayModes 
+  - 모니터의 가로, 세로 크기와 주사율을 출력한다
+
+FlushCommandQueue 
+  - CPU와 GPU의 동기화를 진행한다
+
+OnResize 
+  - 윈도우의 크기를 변경할 경우 SwapChain, DepthStencilView, VeiwPort를 초기화한다
+
+
 Class AppUtility 
   - 반복적으로 호출될 수 있는 문자열 변환, 수학 연산, 리소스 관리 등을 한곳에 모아 관리한다
     
