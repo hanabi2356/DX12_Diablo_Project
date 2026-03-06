@@ -2,14 +2,17 @@
 <26/03/02>
 GameTimer 클래스 완성
 InitMainWindow 함수 완성
+
 <26/03/03>
 Run 함수 완성
 CalculateFrameState 함수 완성
 AnsiToWString 함수 완성
 ThrowIfFailed 매크로 완성
+
 <26/03/04>
 RTV,DSV Desctiptor Heap 생성 함수 완성
 SwapCahin 생성 함수 완성
+
 <26/03/05>
 LogAdapters 함수 완성
 LogAdapterOutputs 함수 완성
@@ -18,6 +21,7 @@ InitDirect3D 함수 완성
 FlushCommandQueue 함수 완성
 CreateCommandObject 함수 완성
 OnResize 함수 완성
+
 # 내일 할 일 정리
 
 
